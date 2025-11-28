@@ -94,7 +94,7 @@
         headPathExpr += 'var endPt = ctrl.effect("End Point")("Point");\n';
         headPathExpr += 'var arrowLen = ctrl.effect("Arrow Head Length")("Slider");\n';
         headPathExpr += 'var arrowWidth = ctrl.effect("Arrow Head Width")("Slider");\n';
-        headPathExpr += 'var progress = ctrl.effect("Trim Progress (0-200%)")("Slider");\n';
+        headPathExpr += 'var progress = clamp(ctrl.effect("Trim Progress (0-200%)")("Slider"), 0, 200);\n';
         headPathExpr += '\n';
         headPathExpr += 'var dir = endPt - startPt;\n';
         headPathExpr += 'var totalLen = length(dir);\n';
@@ -131,7 +131,7 @@
         
         // Arrow Head Opacity for 100-200% phase
         var headOpacityExpr = '';
-        headOpacityExpr += 'var progress = thisComp.layer("Arrow Controller").effect("Trim Progress (0-200%)")("Slider");\n';
+        headOpacityExpr += 'var progress = clamp(thisComp.layer("Arrow Controller").effect("Trim Progress (0-200%)")("Slider"), 0, 200);\n';
         headOpacityExpr += 'if (progress <= 100) {\n';
         headOpacityExpr += '    100;\n';
         headOpacityExpr += '} else {\n';
@@ -154,7 +154,7 @@
         shaftPathExpr += 'var startPt = ctrl.effect("Start Point")("Point");\n';
         shaftPathExpr += 'var endPt = ctrl.effect("End Point")("Point");\n';
         shaftPathExpr += 'var arrowLen = ctrl.effect("Arrow Head Length")("Slider");\n';
-        shaftPathExpr += 'var progress = ctrl.effect("Trim Progress (0-200%)")("Slider");\n';
+        shaftPathExpr += 'var progress = clamp(ctrl.effect("Trim Progress (0-200%)")("Slider"), 0, 200);\n';
         shaftPathExpr += '\n';
         shaftPathExpr += 'var dir = endPt - startPt;\n';
         shaftPathExpr += 'var totalLen = length(dir);\n';
@@ -195,7 +195,7 @@
         shaftTrim.name = "Trim Paths";
         
         var shaftTrimStartExpr = '';
-        shaftTrimStartExpr += 'var progress = thisComp.layer("Arrow Controller").effect("Trim Progress (0-200%)")("Slider");\n';
+        shaftTrimStartExpr += 'var progress = clamp(thisComp.layer("Arrow Controller").effect("Trim Progress (0-200%)")("Slider"), 0, 200);\n';
         shaftTrimStartExpr += 'if (progress <= 100) {\n';
         shaftTrimStartExpr += '    0;\n';
         shaftTrimStartExpr += '} else {\n';
