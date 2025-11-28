@@ -2,19 +2,21 @@
  * Linear Combination Control System for After Effects
  * 
  * Creates a system where three control points move along vectors a1, a2, a3,
- * and their linear combination always equals a fixed target vector b.
+ * and their linear combination always equals a target vector b.
  * 
  * Vectors: a1=(1,2), a2=(2,3), a3=(3,1)
- * Target: b=(4,2)
+ * Initial target: b=(4,2)
  * Initial coefficients: k1=-1, k2=1, k3=1
  * 
  * Architecture:
- * - Driver layer has Point Controls (Input_A1, Input_A2, Input_A3) for user to drag
- * - K1/K2/K3 sliders are computed from the active input
- * - Ctrl_A1/A2/A3 layers' positions are driven by K sliders
+ * - Driver layer has Point Controls (Input_A1, Input_A2, Input_A3, Input_B) for user to drag
+ * - K1/K2/K3 sliders are computed based on Active selection
+ * - When dragging Input_A*, the active k is derived from position, others are solved
+ * - When dragging Input_B, the active k is kept fixed, others are solved for new b
+ * - Ctrl_A1/A2/A3 and Target_B layers' positions are driven by expressions
  * 
  * @author AI Assistant
- * @version 2.0
+ * @version 3.0
  */
 
 (function() {
@@ -62,10 +64,9 @@
     originLayer.position.setValue([config.originX, config.originY]);
     originLayer.label = 9;
 
-    // 2. Target vector B endpoint
+    // 2. Target vector B endpoint (will be driven by expression)
     var targetLayer = comp.layers.addNull();
     targetLayer.name = "Target_B";
-    targetLayer.position.setValue(vectorToScreen(config.b[0], config.b[1]));
     targetLayer.label = 1;
 
     // 3. Driver layer with all controls
@@ -92,6 +93,11 @@
     inputA3.name = "Input_A3";
     inputA3.property(1).setValue(vectorToScreen(config.k3 * config.a3[0], config.k3 * config.a3[1]));
     
+    // Point Control for target vector B
+    var inputB = driverLayer.Effects.addProperty("ADBE Point Control");
+    inputB.name = "Input_B";
+    inputB.property(1).setValue(vectorToScreen(config.b[0], config.b[1]));
+    
     // K sliders (computed values)
     driverLayer.Effects.addProperty("ADBE Slider Control").name = "K1";
     driverLayer.Effects.addProperty("ADBE Slider Control").name = "K2";
@@ -112,35 +118,42 @@
 
     // ============== Expressions ==============
     
-    // Common helper functions as string
+    // Common helper functions as string (b is now read from Input_B)
     var helperFunctions = [
         'var origin = [960, 540];',
         'var scale = 100;',
         'var a1 = [1, 2], a2 = [2, 3], a3 = [3, 1];',
-        'var b = [4, 2];',
         '',
-        'function getK(pos, a) {',
-        '    var dx = (pos[0] - origin[0]) / scale;',
-        '    var dy = -(pos[1] - origin[1]) / scale;',
-        '    var lenSq = a[0]*a[0] + a[1]*a[1];',
-        '    return (dx * a[0] + dy * a[1]) / lenSq;',
+        '// Convert screen position to vector coordinates',
+        'function screenToVec(pos) {',
+        '    return [(pos[0] - origin[0]) / scale, -(pos[1] - origin[1]) / scale];',
         '}',
         '',
-        'function solveK1K2(k3) {',
+        '// Project position onto vector direction, return coefficient k',
+        'function getK(pos, a) {',
+        '    var v = screenToVec(pos);',
+        '    var lenSq = a[0]*a[0] + a[1]*a[1];',
+        '    return (v[0] * a[0] + v[1] * a[1]) / lenSq;',
+        '}',
+        '',
+        '// Solve for k1, k2 given k3 and target b',
+        'function solveK1K2(k3, b) {',
         '    var rx = b[0] - k3 * a3[0];',
         '    var ry = b[1] - k3 * a3[1];',
         '    var det = a1[0]*a2[1] - a1[1]*a2[0];',
         '    return [(rx*a2[1] - ry*a2[0]) / det, (a1[0]*ry - a1[1]*rx) / det];',
         '}',
         '',
-        'function solveK1K3(k2) {',
+        '// Solve for k1, k3 given k2 and target b',
+        'function solveK1K3(k2, b) {',
         '    var rx = b[0] - k2 * a2[0];',
         '    var ry = b[1] - k2 * a2[1];',
         '    var det = a1[0]*a3[1] - a1[1]*a3[0];',
         '    return [(rx*a3[1] - ry*a3[0]) / det, (a1[0]*ry - a1[1]*rx) / det];',
         '}',
         '',
-        'function solveK2K3(k1) {',
+        '// Solve for k2, k3 given k1 and target b',
+        'function solveK2K3(k1, b) {',
         '    var rx = b[0] - k1 * a1[0];',
         '    var ry = b[1] - k1 * a1[1];',
         '    var det = a2[0]*a3[1] - a2[1]*a3[0];',
@@ -155,14 +168,16 @@
         'var p1 = effect("Input_A1")("Point");',
         'var p2 = effect("Input_A2")("Point");',
         'var p3 = effect("Input_A3")("Point");',
+        'var pB = effect("Input_B")("Point");',
+        'var b = screenToVec(pB);',
         '',
         'var result = 0;',
         'if (active == 1) {',
         '    result = getK(p1, a1);',
         '} else if (active == 2) {',
-        '    result = solveK1K3(getK(p2, a2))[0];',
+        '    result = solveK1K3(getK(p2, a2), b)[0];',
         '} else {',
-        '    result = solveK1K2(getK(p3, a3))[0];',
+        '    result = solveK1K2(getK(p3, a3), b)[0];',
         '}',
         'result;'
     ].join('\n');
@@ -173,14 +188,16 @@
         'var p1 = effect("Input_A1")("Point");',
         'var p2 = effect("Input_A2")("Point");',
         'var p3 = effect("Input_A3")("Point");',
+        'var pB = effect("Input_B")("Point");',
+        'var b = screenToVec(pB);',
         '',
         'var result = 0;',
         'if (active == 1) {',
-        '    result = solveK2K3(getK(p1, a1))[0];',
+        '    result = solveK2K3(getK(p1, a1), b)[0];',
         '} else if (active == 2) {',
         '    result = getK(p2, a2);',
         '} else {',
-        '    result = solveK1K2(getK(p3, a3))[1];',
+        '    result = solveK1K2(getK(p3, a3), b)[1];',
         '}',
         'result;'
     ].join('\n');
@@ -191,12 +208,14 @@
         'var p1 = effect("Input_A1")("Point");',
         'var p2 = effect("Input_A2")("Point");',
         'var p3 = effect("Input_A3")("Point");',
+        'var pB = effect("Input_B")("Point");',
+        'var b = screenToVec(pB);',
         '',
         'var result = 0;',
         'if (active == 1) {',
-        '    result = solveK2K3(getK(p1, a1))[1];',
+        '    result = solveK2K3(getK(p1, a1), b)[1];',
         '} else if (active == 2) {',
-        '    result = solveK1K3(getK(p2, a2))[1];',
+        '    result = solveK1K3(getK(p2, a2), b)[1];',
         '} else {',
         '    result = getK(p3, a3);',
         '}',
@@ -230,6 +249,11 @@
         '[origin[0] + k3 * a3[0] * scale, origin[1] - k3 * a3[1] * scale];'
     ].join('\n');
 
+    // Target_B position: follows Input_B
+    var targetBExpression = [
+        'thisComp.layer("Driver").effect("Input_B")("Point");'
+    ].join('\n');
+
     // Apply expressions - access sliders by name through the layer
     driverLayer.effect("K1")("Slider").expression = k1Expression;
     driverLayer.effect("K2")("Slider").expression = k2Expression;
@@ -238,6 +262,7 @@
     ctrlA1.position.expression = ctrlA1Expression;
     ctrlA2.position.expression = ctrlA2Expression;
     ctrlA3.position.expression = ctrlA3Expression;
+    targetLayer.position.expression = targetBExpression;
 
     app.endUndoGroup();
 
@@ -245,11 +270,14 @@
           "Usage:\n" +
           "1. Select the Driver layer\n" +
           "2. Set Active slider to 1, 2, or 3\n" +
-          "3. Drag the corresponding Input_A1/A2/A3 Point Control in Effect Controls\n" +
-          "4. Watch Ctrl_A1/A2/A3 layers move - the active one follows your drag (projected onto vector),\n" +
-          "   and the other two auto-adjust to maintain b = (4,2)\n\n" +
+          "3. Drag Input_A1/A2/A3 to move control points along vectors\n" +
+          "   - The active one follows your drag (projected onto vector)\n" +
+          "   - The other two auto-adjust to maintain k1*a1 + k2*a2 + k3*a3 = b\n" +
+          "4. Drag Input_B to move the target vector\n" +
+          "   - The active k stays fixed, other two k values adjust\n\n" +
           "Layers:\n" +
-          "- Driver: Contains Active slider and Input_A1/A2/A3 point controls\n" +
-          "- Ctrl_A1/A2/A3: Visual control points (driven by expressions)");
+          "- Driver: Active slider, Input_A1/A2/A3, Input_B point controls\n" +
+          "- Target_B: Target vector endpoint (follows Input_B)\n" +
+          "- Ctrl_A1/A2/A3: Control points (driven by K sliders)");
 
 })();
