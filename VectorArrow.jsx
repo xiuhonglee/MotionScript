@@ -29,7 +29,7 @@
 
         // Create Control Layer
         var controlLayer = comp.layers.addNull();
-        controlLayer.name = "Arrow Control";
+        controlLayer.name = "Arrow Controller";
         controlLayer.label = 9;
         // Set position to [0,0] so Point Control values equal screen coordinates
         controlLayer.property("ADBE Transform Group").property("ADBE Position").setValue([0, 0]);
@@ -46,7 +46,7 @@
         
         var arrowLengthCtrl = effectsGroup.addProperty("ADBE Slider Control");
         arrowLengthCtrl.name = "Arrow Head Length";
-        arrowLengthCtrl.property("ADBE Slider Control-0001").setValue(20);
+        arrowLengthCtrl.property("ADBE Slider Control-0001").setValue(35);
         
         var arrowWidthCtrl = effectsGroup.addProperty("ADBE Slider Control");
         arrowWidthCtrl.name = "Arrow Head Width";
@@ -68,24 +68,89 @@
         trimCtrl.name = "Trim Progress (0-200%)";
         trimCtrl.property("ADBE Slider Control-0001").setValue(100);
 
-        // Create Arrow Shaft
-        var shaftLayer = comp.layers.addShape();
-        shaftLayer.name = "Arrow Shaft";
-        shaftLayer.label = 1;
-        // Set anchor and position to [0,0] so fromComp works correctly
-        shaftLayer.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([0, 0]);
-        shaftLayer.property("ADBE Transform Group").property("ADBE Position").setValue([0, 0]);
+        // Create single Shape Layer for the entire arrow
+        var arrowLayer = comp.layers.addShape();
+        arrowLayer.name = "Vector Arrow";
+        arrowLayer.label = 1;
+        // Set anchor and position to [0,0] so coordinates equal screen coordinates
+        arrowLayer.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([0, 0]);
+        arrowLayer.property("ADBE Transform Group").property("ADBE Position").setValue([0, 0]);
         
-        var shaftContents = shaftLayer.property("ADBE Root Vectors Group");
-        var shaftGroup = shaftContents.addProperty("ADBE Vector Group");
-        shaftGroup.name = "Shaft Group";
+        var arrowContents = arrowLayer.property("ADBE Root Vectors Group");
+        
+        // ============================================
+        // Arrow Head Group (add first so it renders on top)
+        // ============================================
+        var headGroup = arrowContents.addProperty("ADBE Vector Group");
+        headGroup.name = "Arrow Head";
+        var headGroupContents = headGroup.property("ADBE Vectors Group");
+        
+        var headPath = headGroupContents.addProperty("ADBE Vector Shape - Group");
+        headPath.name = "Head Path";
+        
+        var headPathExpr = '';
+        headPathExpr += 'var ctrl = thisComp.layer("Arrow Controller");\n';
+        headPathExpr += 'var startPt = ctrl.effect("Start Point")("Point");\n';
+        headPathExpr += 'var endPt = ctrl.effect("End Point")("Point");\n';
+        headPathExpr += 'var arrowLen = ctrl.effect("Arrow Head Length")("Slider");\n';
+        headPathExpr += 'var arrowWidth = ctrl.effect("Arrow Head Width")("Slider");\n';
+        headPathExpr += 'var progress = ctrl.effect("Trim Progress (0-200%)")("Slider");\n';
+        headPathExpr += '\n';
+        headPathExpr += 'var dir = endPt - startPt;\n';
+        headPathExpr += 'var totalLen = length(dir);\n';
+        headPathExpr += 'if (totalLen == 0) totalLen = 0.001;\n';
+        headPathExpr += 'var normDir = dir / totalLen;\n';
+        headPathExpr += 'var perpDir = [normDir[1], -normDir[0]];\n';
+        headPathExpr += '\n';
+        headPathExpr += 'var tip;\n';
+        headPathExpr += 'if (progress <= 100) {\n';
+        headPathExpr += '    tip = startPt + normDir * (progress / 100) * totalLen;\n';
+        headPathExpr += '} else {\n';
+        headPathExpr += '    tip = endPt;\n';
+        headPathExpr += '}\n';
+        headPathExpr += '\n';
+        headPathExpr += 'var currentLen = length(tip - startPt);\n';
+        headPathExpr += 'var effectiveArrowLen = Math.min(arrowLen, currentLen);\n';
+        headPathExpr += 'var baseCenter = tip - normDir * effectiveArrowLen;\n';
+        headPathExpr += '\n';
+        headPathExpr += 'var widthScale = effectiveArrowLen / arrowLen;\n';
+        headPathExpr += 'var effectiveWidth = arrowWidth * widthScale;\n';
+        headPathExpr += '\n';
+        headPathExpr += 'var baseLeft = baseCenter + perpDir * (effectiveWidth / 2);\n';
+        headPathExpr += 'var baseRight = baseCenter - perpDir * (effectiveWidth / 2);\n';
+        headPathExpr += '\n';
+        headPathExpr += 'var p1 = tip;\n';
+        headPathExpr += 'var p2 = baseLeft;\n';
+        headPathExpr += 'var p3 = baseRight;\n';
+        headPathExpr += 'createPath([p1, p2, p3], [], [], true);';
+        
+        headPath.property("ADBE Vector Shape").expression = headPathExpr;
+        
+        var headFill = headGroupContents.addProperty("ADBE Vector Graphic - Fill");
+        headFill.property("ADBE Vector Fill Color").expression = 'thisComp.layer("Arrow Controller").effect("Arrow Color")("Color")';
+        
+        // Arrow Head Opacity for 100-200% phase
+        var headOpacityExpr = '';
+        headOpacityExpr += 'var progress = thisComp.layer("Arrow Controller").effect("Trim Progress (0-200%)")("Slider");\n';
+        headOpacityExpr += 'if (progress <= 100) {\n';
+        headOpacityExpr += '    100;\n';
+        headOpacityExpr += '} else {\n';
+        headOpacityExpr += '    linear(progress, 100, 200, 100, 0);\n';
+        headOpacityExpr += '}';
+        headGroup.property("ADBE Vector Transform Group").property("ADBE Vector Group Opacity").expression = headOpacityExpr;
+        
+        // ============================================
+        // Shaft Group
+        // ============================================
+        var shaftGroup = arrowContents.addProperty("ADBE Vector Group");
+        shaftGroup.name = "Shaft";
         var shaftGroupContents = shaftGroup.property("ADBE Vectors Group");
         
         var shaftPath = shaftGroupContents.addProperty("ADBE Vector Shape - Group");
         shaftPath.name = "Shaft Path";
         
         var shaftPathExpr = '';
-        shaftPathExpr += 'var ctrl = thisComp.layer("Arrow Control");\n';
+        shaftPathExpr += 'var ctrl = thisComp.layer("Arrow Controller");\n';
         shaftPathExpr += 'var startPt = ctrl.effect("Start Point")("Point");\n';
         shaftPathExpr += 'var endPt = ctrl.effect("End Point")("Point");\n';
         shaftPathExpr += 'var arrowLen = ctrl.effect("Arrow Head Length")("Slider");\n';
@@ -114,22 +179,23 @@
         shaftPath.property("ADBE Vector Shape").expression = shaftPathExpr;
         
         var shaftStroke = shaftGroupContents.addProperty("ADBE Vector Graphic - Stroke");
-        shaftStroke.property("ADBE Vector Stroke Color").expression = 'thisComp.layer("Arrow Control").effect("Arrow Color")("Color")';
-        shaftStroke.property("ADBE Vector Stroke Width").expression = 'thisComp.layer("Arrow Control").effect("Shaft Thickness")("Slider")';
+        shaftStroke.property("ADBE Vector Stroke Color").expression = 'thisComp.layer("Arrow Controller").effect("Arrow Color")("Color")';
+        shaftStroke.property("ADBE Vector Stroke Width").expression = 'thisComp.layer("Arrow Controller").effect("Shaft Thickness")("Slider")';
         shaftStroke.property("ADBE Vector Stroke Line Cap").setValue(2);
         
         try {
             var taperStartLen = shaftStroke.property("Taper").property("Start Length");
             if (taperStartLen) {
-                taperStartLen.expression = 'thisComp.layer("Arrow Control").effect("Taper Start Length")("Slider")';
+                taperStartLen.expression = 'thisComp.layer("Arrow Controller").effect("Taper Start Length")("Slider")';
             }
         } catch (taperErr) {}
         
-        var shaftTrim = shaftContents.addProperty("ADBE Vector Filter - Trim");
+        // Trim Paths for Shaft (100-200% phase)
+        var shaftTrim = shaftGroup.property("ADBE Vectors Group").addProperty("ADBE Vector Filter - Trim");
         shaftTrim.name = "Trim Paths";
         
         var shaftTrimStartExpr = '';
-        shaftTrimStartExpr += 'var progress = thisComp.layer("Arrow Control").effect("Trim Progress (0-200%)")("Slider");\n';
+        shaftTrimStartExpr += 'var progress = thisComp.layer("Arrow Controller").effect("Trim Progress (0-200%)")("Slider");\n';
         shaftTrimStartExpr += 'if (progress <= 100) {\n';
         shaftTrimStartExpr += '    0;\n';
         shaftTrimStartExpr += '} else {\n';
@@ -138,74 +204,7 @@
         shaftTrim.property("ADBE Vector Trim Start").expression = shaftTrimStartExpr;
         shaftTrim.property("ADBE Vector Trim End").setValue(100);
 
-        // Create Arrow Head
-        var arrowLayer = comp.layers.addShape();
-        arrowLayer.name = "Arrow Head";
-        arrowLayer.label = 1;
-        // Set anchor and position to [0,0] so fromComp works correctly
-        arrowLayer.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([0, 0]);
-        arrowLayer.property("ADBE Transform Group").property("ADBE Position").setValue([0, 0]);
-        
-        var arrowContents = arrowLayer.property("ADBE Root Vectors Group");
-        var arrowGroup = arrowContents.addProperty("ADBE Vector Group");
-        arrowGroup.name = "Arrow Head Group";
-        var arrowGroupContents = arrowGroup.property("ADBE Vectors Group");
-        
-        var arrowPath = arrowGroupContents.addProperty("ADBE Vector Shape - Group");
-        arrowPath.name = "Arrow Head Path";
-        
-        var arrowPathExpr = '';
-        arrowPathExpr += 'var ctrl = thisComp.layer("Arrow Control");\n';
-        arrowPathExpr += 'var startPt = ctrl.effect("Start Point")("Point");\n';
-        arrowPathExpr += 'var endPt = ctrl.effect("End Point")("Point");\n';
-        arrowPathExpr += 'var arrowLen = ctrl.effect("Arrow Head Length")("Slider");\n';
-        arrowPathExpr += 'var arrowWidth = ctrl.effect("Arrow Head Width")("Slider");\n';
-        arrowPathExpr += 'var progress = ctrl.effect("Trim Progress (0-200%)")("Slider");\n';
-        arrowPathExpr += '\n';
-        arrowPathExpr += 'var dir = endPt - startPt;\n';
-        arrowPathExpr += 'var totalLen = length(dir);\n';
-        arrowPathExpr += 'if (totalLen == 0) totalLen = 0.001;\n';
-        arrowPathExpr += 'var normDir = dir / totalLen;\n';
-        arrowPathExpr += 'var perpDir = [normDir[1], -normDir[0]];\n';
-        arrowPathExpr += '\n';
-        arrowPathExpr += 'var tip;\n';
-        arrowPathExpr += 'if (progress <= 100) {\n';
-        arrowPathExpr += '    tip = startPt + normDir * (progress / 100) * totalLen;\n';
-        arrowPathExpr += '} else {\n';
-        arrowPathExpr += '    tip = endPt;\n';
-        arrowPathExpr += '}\n';
-        arrowPathExpr += '\n';
-        arrowPathExpr += 'var currentLen = length(tip - startPt);\n';
-        arrowPathExpr += 'var effectiveArrowLen = Math.min(arrowLen, currentLen);\n';
-        arrowPathExpr += 'var baseCenter = tip - normDir * effectiveArrowLen;\n';
-        arrowPathExpr += '\n';
-        arrowPathExpr += 'var widthScale = effectiveArrowLen / arrowLen;\n';
-        arrowPathExpr += 'var effectiveWidth = arrowWidth * widthScale;\n';
-        arrowPathExpr += '\n';
-        arrowPathExpr += 'var baseLeft = baseCenter + perpDir * (effectiveWidth / 2);\n';
-        arrowPathExpr += 'var baseRight = baseCenter - perpDir * (effectiveWidth / 2);\n';
-        arrowPathExpr += '\n';
-        arrowPathExpr += 'var p1 = tip;\n';
-        arrowPathExpr += 'var p2 = baseLeft;\n';
-        arrowPathExpr += 'var p3 = baseRight;\n';
-        arrowPathExpr += 'createPath([p1, p2, p3], [], [], true);';
-        
-        arrowPath.property("ADBE Vector Shape").expression = arrowPathExpr;
-        
-        var arrowFill = arrowGroupContents.addProperty("ADBE Vector Graphic - Fill");
-        arrowFill.property("ADBE Vector Fill Color").expression = 'thisComp.layer("Arrow Control").effect("Arrow Color")("Color")';
-        
-        var arrowOpacityExpr = '';
-        arrowOpacityExpr += 'var progress = thisComp.layer("Arrow Control").effect("Trim Progress (0-200%)")("Slider");\n';
-        arrowOpacityExpr += 'if (progress <= 100) {\n';
-        arrowOpacityExpr += '    100;\n';
-        arrowOpacityExpr += '} else {\n';
-        arrowOpacityExpr += '    linear(progress, 100, 200, 100, 0);\n';
-        arrowOpacityExpr += '}';
-        
-        arrowLayer.property("ADBE Transform Group").property("ADBE Opacity").expression = arrowOpacityExpr;
-
-        alert("Vector Arrow created!\n\nControls on 'Arrow Control' layer:\n- Start Point / End Point\n- Arrow Head Length / Width\n- Shaft Thickness\n- Arrow Color\n- Taper Start Length\n- Trim Progress (0-200%)");
+        alert("Vector Arrow created!\n\nLayers:\n- Arrow Controller (controls)\n- Vector Arrow (shape)\n\nControls:\n- Start Point / End Point\n- Arrow Head Length / Width\n- Shaft Thickness\n- Arrow Color\n- Taper Start Length\n- Trim Progress (0-200%)");
 
     } catch (e) {
         alert("Error: " + e.toString() + "\nLine: " + e.line);
