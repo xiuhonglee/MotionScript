@@ -62,18 +62,18 @@
     var originLayer = comp.layers.addNull();
     originLayer.name = "Origin";
     originLayer.position.setValue([config.originX, config.originY]);
-    originLayer.label = 9;
+    originLayer.label = 10;
 
     // 2. Target vector B endpoint (will be driven by expression)
     var targetLayer = comp.layers.addNull();
     targetLayer.name = "Target_B";
-    targetLayer.label = 1;
+    targetLayer.label = 10;
 
     // 3. Driver layer with all controls
     var driverLayer = comp.layers.addNull();
     driverLayer.name = "Driver";
     driverLayer.position.setValue([0, 0]);  // Set to origin so Point Controls align with comp coordinates
-    driverLayer.label = 14;
+    driverLayer.label = 10;
     
     // Active slider (1, 2, or 3)
     var activeSlider = driverLayer.Effects.addProperty("ADBE Slider Control");
@@ -106,15 +106,15 @@
     // 4. Control point layers (visual representation)
     var ctrlA1 = comp.layers.addNull();
     ctrlA1.name = "Ctrl_A1";
-    ctrlA1.label = 11;
+    ctrlA1.label = 10;
 
     var ctrlA2 = comp.layers.addNull();
     ctrlA2.name = "Ctrl_A2";
-    ctrlA2.label = 12;
+    ctrlA2.label = 10;
 
     var ctrlA3 = comp.layers.addNull();
     ctrlA3.name = "Ctrl_A3";
-    ctrlA3.label = 16;
+    ctrlA3.label = 10;
 
     // ============== Expressions ==============
     
@@ -258,6 +258,28 @@
         'thisComp.layer("Driver").effect("Input_B")("Point");'
     ].join('\n');
 
+    // Parallelogram 1 path expression (Origin, Ctrl_A1, C, Ctrl_A3)
+    // C = k1*a1 + k3*a3 (the sum of vectors from Origin to Ctrl_A1 and Ctrl_A3)
+    var parallelogram1PathExpr = [
+        'var O = thisComp.layer("Origin").transform.position;',
+        'var A1 = thisComp.layer("Ctrl_A1").transform.position;',
+        'var A3 = thisComp.layer("Ctrl_A3").transform.position;',
+        'var C = [A1[0] + A3[0] - O[0], A1[1] + A3[1] - O[1]];',
+        'createPath([O, A1, C, A3], [], [], true);'
+    ].join('\n');
+
+    // Parallelogram 2 path expression (Origin, C, Target_B, Ctrl_A2)
+    // This shows: O + (k1*a1 + k3*a3) + k2*a2 = b
+    var parallelogram2PathExpr = [
+        'var O = thisComp.layer("Origin").transform.position;',
+        'var A1 = thisComp.layer("Ctrl_A1").transform.position;',
+        'var A2 = thisComp.layer("Ctrl_A2").transform.position;',
+        'var A3 = thisComp.layer("Ctrl_A3").transform.position;',
+        'var B = thisComp.layer("Target_B").transform.position;',
+        'var C = [A1[0] + A3[0] - O[0], A1[1] + A3[1] - O[1]];',
+        'createPath([O, C, B, A2], [], [], true);'
+    ].join('\n');
+
     // Apply expressions - access sliders by name through the layer
     driverLayer.effect("K1")("Slider").expression = k1Expression;
     driverLayer.effect("K2")("Slider").expression = k2Expression;
@@ -267,6 +289,48 @@
     ctrlA2.position.expression = ctrlA2Expression;
     ctrlA3.position.expression = ctrlA3Expression;
     targetLayer.position.expression = targetBExpression;
+
+    // 5. Create parallelogram 1 shape layer (Origin, Ctrl_A1, C, Ctrl_A3)
+    var para1Layer = comp.layers.addShape();
+    para1Layer.name = "Parallelogram_A1A3";
+    para1Layer.label = 10;
+    para1Layer.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([0, 0]);
+    para1Layer.property("ADBE Transform Group").property("ADBE Position").setValue([0, 0]);
+    
+    var shapeGroup1 = para1Layer.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+    shapeGroup1.name = "Para1";
+    
+    var pathGroup1 = shapeGroup1.property("ADBE Vectors Group").addProperty("ADBE Vector Shape - Group");
+    pathGroup1.property("ADBE Vector Shape").expression = parallelogram1PathExpr;
+    
+    var stroke1 = shapeGroup1.property("ADBE Vectors Group").addProperty("ADBE Vector Graphic - Stroke");
+    stroke1.property("ADBE Vector Stroke Color").setValue([0.2, 0.6, 1, 1]);  // Blue
+    stroke1.property("ADBE Vector Stroke Width").setValue(3);
+    
+    var fill1 = shapeGroup1.property("ADBE Vectors Group").addProperty("ADBE Vector Graphic - Fill");
+    fill1.property("ADBE Vector Fill Color").setValue([0.2, 0.6, 1, 1]);
+    fill1.property("ADBE Vector Fill Opacity").setValue(20);
+
+    // 6. Create parallelogram 2 shape layer (Origin, C, Target_B, Ctrl_A2)
+    var para2Layer = comp.layers.addShape();
+    para2Layer.name = "Parallelogram_CA2B";
+    para2Layer.label = 10;
+    para2Layer.property("ADBE Transform Group").property("ADBE Anchor Point").setValue([0, 0]);
+    para2Layer.property("ADBE Transform Group").property("ADBE Position").setValue([0, 0]);
+    
+    var shapeGroup2 = para2Layer.property("ADBE Root Vectors Group").addProperty("ADBE Vector Group");
+    shapeGroup2.name = "Para2";
+    
+    var pathGroup2 = shapeGroup2.property("ADBE Vectors Group").addProperty("ADBE Vector Shape - Group");
+    pathGroup2.property("ADBE Vector Shape").expression = parallelogram2PathExpr;
+    
+    var stroke2 = shapeGroup2.property("ADBE Vectors Group").addProperty("ADBE Vector Graphic - Stroke");
+    stroke2.property("ADBE Vector Stroke Color").setValue([1, 0.5, 0.2, 1]);  // Orange
+    stroke2.property("ADBE Vector Stroke Width").setValue(3);
+    
+    var fill2 = shapeGroup2.property("ADBE Vectors Group").addProperty("ADBE Vector Graphic - Fill");
+    fill2.property("ADBE Vector Fill Color").setValue([1, 0.5, 0.2, 1]);
+    fill2.property("ADBE Vector Fill Opacity").setValue(20);
 
     app.endUndoGroup();
 
@@ -282,6 +346,8 @@
           "Layers:\n" +
           "- Driver: Active slider, Input_A1/A2/A3, Input_B point controls\n" +
           "- Target_B: Target vector endpoint (follows Input_B)\n" +
-          "- Ctrl_A1/A2/A3: Control points (driven by K sliders)");
+          "- Ctrl_A1/A2/A3: Control points (driven by K sliders)\n" +
+          "- Parallelogram_A1A3: Blue shape (Origin, Ctrl_A1, C, Ctrl_A3)\n" +
+          "- Parallelogram_CA2B: Orange shape (Origin, C, Target_B, Ctrl_A2)");
 
 })();
