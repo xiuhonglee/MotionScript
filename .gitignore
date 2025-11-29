@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# IDE
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# After Effects
+*.aep
+*.aepx
+*.aet
+
+# Logs
+*.log
