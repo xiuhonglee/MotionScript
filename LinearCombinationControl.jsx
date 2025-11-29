@@ -72,7 +72,7 @@
     // 3. Driver layer with all controls
     var driverLayer = comp.layers.addNull();
     driverLayer.name = "Driver";
-    driverLayer.position.setValue([100, 100]);
+    driverLayer.position.setValue([0, 0]);  // Set to origin so Point Controls align with comp coordinates
     driverLayer.label = 14;
     
     // Active slider (1, 2, or 3)
