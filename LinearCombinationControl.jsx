@@ -64,9 +64,10 @@
     originLayer.position.setValue([config.originX, config.originY]);
     originLayer.label = 10;
 
-    // 2. Target vector B endpoint (will be driven by expression)
+    // 2. Target vector B endpoint (user can drag directly)
     var targetLayer = comp.layers.addNull();
     targetLayer.name = "Target_B";
+    targetLayer.position.setValue(vectorToScreen(config.b[0], config.b[1]));
     targetLayer.label = 10;
 
     // 3. Driver layer with all controls
@@ -92,11 +93,6 @@
     var inputA3 = driverLayer.Effects.addProperty("ADBE Point Control");
     inputA3.name = "Input_A3";
     inputA3.property(1).setValue(vectorToScreen(config.k3 * config.a3[0], config.k3 * config.a3[1]));
-    
-    // Point Control for target vector B
-    var inputB = driverLayer.Effects.addProperty("ADBE Point Control");
-    inputB.name = "Input_B";
-    inputB.property(1).setValue(vectorToScreen(config.b[0], config.b[1]));
     
     // K sliders (computed values)
     driverLayer.Effects.addProperty("ADBE Slider Control").name = "K1";
@@ -172,7 +168,7 @@
         'var p1 = effect("Input_A1")("Point");',
         'var p2 = effect("Input_A2")("Point");',
         'var p3 = effect("Input_A3")("Point");',
-        'var pB = effect("Input_B")("Point");',
+        'var pB = thisComp.layer("Target_B").transform.position;',
         'var b = screenToVec(pB);',
         '',
         'var result = 0;',
@@ -192,7 +188,7 @@
         'var p1 = effect("Input_A1")("Point");',
         'var p2 = effect("Input_A2")("Point");',
         'var p3 = effect("Input_A3")("Point");',
-        'var pB = effect("Input_B")("Point");',
+        'var pB = thisComp.layer("Target_B").transform.position;',
         'var b = screenToVec(pB);',
         '',
         'var result = 0;',
@@ -212,7 +208,7 @@
         'var p1 = effect("Input_A1")("Point");',
         'var p2 = effect("Input_A2")("Point");',
         'var p3 = effect("Input_A3")("Point");',
-        'var pB = effect("Input_B")("Point");',
+        'var pB = thisComp.layer("Target_B").transform.position;',
         'var b = screenToVec(pB);',
         '',
         'var result = 0;',
@@ -253,11 +249,6 @@
         '[origin[0] + k3 * a3[0] * scale, origin[1] - k3 * a3[1] * scale];'
     ].join('\n');
 
-    // Target_B position: follows Input_B
-    var targetBExpression = [
-        'thisComp.layer("Driver").effect("Input_B")("Point");'
-    ].join('\n');
-
     // Parallelogram 1 path expression (Origin, Ctrl_A1, C, Ctrl_A3)
     // C = k1*a1 + k3*a3 (the sum of vectors from Origin to Ctrl_A1 and Ctrl_A3)
     var parallelogram1PathExpr = [
@@ -288,7 +279,7 @@
     ctrlA1.position.expression = ctrlA1Expression;
     ctrlA2.position.expression = ctrlA2Expression;
     ctrlA3.position.expression = ctrlA3Expression;
-    targetLayer.position.expression = targetBExpression;
+    // Target_B has no expression - user can drag it directly
 
     // 5. Create parallelogram 1 shape layer (Origin, Ctrl_A1, C, Ctrl_A3)
     var para1Layer = comp.layers.addShape();
@@ -341,11 +332,11 @@
           "3. Drag Input_A1/A2/A3 to move control points along vectors\n" +
           "   - The active one follows your drag (projected onto vector)\n" +
           "   - The other two auto-adjust to maintain k1*a1 + k2*a2 + k3*a3 = b\n" +
-          "4. Drag Input_B to move the target vector\n" +
+          "4. Drag Target_B layer directly to move the target vector\n" +
           "   - The active k stays fixed, other two k values adjust\n\n" +
           "Layers:\n" +
-          "- Driver: Active slider, Input_A1/A2/A3, Input_B point controls\n" +
-          "- Target_B: Target vector endpoint (follows Input_B)\n" +
+          "- Driver: Active slider, Input_A1/A2/A3 point controls\n" +
+          "- Target_B: Target vector endpoint (drag directly)\n" +
           "- Ctrl_A1/A2/A3: Control points (driven by K sliders)\n" +
           "- Parallelogram_A1A3: Blue shape (Origin, Ctrl_A1, C, Ctrl_A3)\n" +
           "- Parallelogram_CA2B: Orange shape (Origin, C, Target_B, Ctrl_A2)");
