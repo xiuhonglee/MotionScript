@@ -38,6 +38,17 @@
     var defaultScreenPos = gridToScreen(defaultGridPos[0], defaultGridPos[1]);
     controlNull.position.setValue(defaultScreenPos);
 
+    // Add Slider for coefficient k
+    // k = gridX / 3, where point is at (3k, 2k) on line 2x - 3y = 0
+    var sliderEffect = controlNull.property("ADBE Effect Parade").addProperty("ADBE Slider Control");
+    sliderEffect.name = "Coefficient (k)";
+    sliderEffect.property("ADBE Slider Control-0001").expression = [
+        '// k = gridX / 3, point at (3k, 2k)',
+        'var screenX = transform.position[0];',
+        'var gridX = (screenX - 960) / 100;',
+        'gridX / 3;'
+    ].join('\n');
+
     // Expression to constrain control point to line 2x - 3y = 0
     controlNull.position.expression = [
         '// Line: 2x - 3y = 0, so y = (2/3)x',
@@ -55,28 +66,6 @@
     shapeLayer.name = "Graphics";
     shapeLayer.position.setValue([CENTER_X, CENTER_Y]);
     var contents = shapeLayer.property("ADBE Root Vectors Group");
-
-    // ----- X Axis (gray line) -----
-    var xAxisPath = contents.addProperty("ADBE Vector Shape - Group");
-    xAxisPath.name = "X Axis";
-    var xAxisPathData = new Shape();
-    xAxisPathData.vertices = [[-960, 0], [960, 0]];
-    xAxisPathData.closed = false;
-    xAxisPath.property("ADBE Vector Shape").setValue(xAxisPathData);
-    var xAxisStroke = contents.addProperty("ADBE Vector Graphic - Stroke");
-    xAxisStroke.property("ADBE Vector Stroke Color").setValue([0.5, 0.5, 0.5, 1]);
-    xAxisStroke.property("ADBE Vector Stroke Width").setValue(2);
-
-    // ----- Y Axis (gray line) -----
-    var yAxisPath = contents.addProperty("ADBE Vector Shape - Group");
-    yAxisPath.name = "Y Axis";
-    var yAxisPathData = new Shape();
-    yAxisPathData.vertices = [[0, -540], [0, 540]];
-    yAxisPathData.closed = false;
-    yAxisPath.property("ADBE Vector Shape").setValue(yAxisPathData);
-    var yAxisStroke = contents.addProperty("ADBE Vector Graphic - Stroke");
-    yAxisStroke.property("ADBE Vector Stroke Color").setValue([0.5, 0.5, 0.5, 1]);
-    yAxisStroke.property("ADBE Vector Stroke Width").setValue(2);
 
     // ----- Main Line 2x-3y=0 (blue) -----
     var linePath = contents.addProperty("ADBE Vector Shape - Group");
