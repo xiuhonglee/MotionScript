@@ -25,7 +25,7 @@
         circleStrokeWidth: 3,
         
         // Grid settings
-        gridLevels: [4, 8, 16, 32],  // Different grid densities
+        gridLevels: [4, 8, 16, 32, 64],  // Different grid densities
         gridColor: [0.7, 0.7, 0.7],
         gridStrokeWidth: 1,
         
@@ -45,6 +45,11 @@
     // Use (0, 0) as center for shapes within each layer
     var centerX = 0;
     var centerY = 0;
+
+    // Pre-calculate approximation percentages for each grid level
+    // Percentage = (filled squares area) / (circle area) * 100
+    var circleArea = Math.PI * config.circleRadius * config.circleRadius;
+    var approximationData = [];
 
     // ============ Helper Functions ============
     
@@ -84,6 +89,35 @@
         layer.name = name;
         layer.position.setValue([compCenterX, compCenterY]);
         return layer;
+    }
+
+    /**
+     * Count squares inside circle and calculate approximation percentage
+     * @param {number} gridSize - Number of divisions per side
+     * @returns {object} - {count, percentage}
+     */
+    function calculateApproximation(gridSize) {
+        var squareSize = (config.circleRadius * 2) / gridSize;
+        var count = 0;
+        
+        for (var row = 0; row < gridSize; row++) {
+            for (var col = 0; col < gridSize; col++) {
+                var localX = -config.circleRadius + squareSize * (col + 0.5);
+                var localY = -config.circleRadius + squareSize * (row + 0.5);
+                
+                if (isSquareInsideCircle(localX, localY, squareSize, config.circleRadius)) {
+                    count++;
+                }
+            }
+        }
+        
+        var filledArea = count * squareSize * squareSize;
+        var percentage = (filledArea / circleArea) * 100;
+        
+        return {
+            count: count,
+            percentage: percentage.toFixed(1)
+        };
     }
 
     /**
@@ -274,7 +308,56 @@
         return layer;
     }
 
+    /**
+     * Create text layer showing approximation info
+     * @param {Array} timingsData - Array of timing and approximation data
+     * @returns {TextLayer}
+     */
+    function createInfoTextLayer(timingsData) {
+        var textLayer = comp.layers.addText("");
+        textLayer.name = "Info Text";
+        
+        // Position text below the circle
+        textLayer.position.setValue([compCenterX, compCenterY + config.circleRadius + 60]);
+        
+        // Build expression for dynamic text
+        var exprParts = ['var t = time;'];
+        
+        for (var i = 0; i < timingsData.length; i++) {
+            var data = timingsData[i];
+            var condition = (i === 0) ? 'if' : 'else if';
+            var nextStart = (i < timingsData.length - 1) ? timingsData[i + 1].startTime : 9999;
+            
+            exprParts.push(
+                condition + ' (t >= ' + data.startTime + ' && t < ' + nextStart + ') {'
+            );
+            exprParts.push(
+                '    "' + data.gridSize + '×' + data.gridSize + ' → ' + data.percentage + '%";'
+            );
+            exprParts.push('}');
+        }
+        exprParts.push('else { ""; }');
+        
+        var sourceText = textLayer.property("Source Text");
+        sourceText.expression = exprParts.join('\n');
+        
+        // Style the text
+        var textDoc = sourceText.value;
+        textDoc.fontSize = 36;
+        textDoc.fillColor = [0.2, 0.2, 0.2];
+        textDoc.font = "Arial";
+        textDoc.justification = ParagraphJustification.CENTER_JUSTIFY;
+        sourceText.setValue(textDoc);
+        
+        return textLayer;
+    }
+
     // ============ Build Animation ============
+    
+    // Pre-calculate approximation for each grid level
+    for (var i = 0; i < config.gridLevels.length; i++) {
+        approximationData.push(calculateApproximation(config.gridLevels[i]));
+    }
     
     // Calculate timing for each grid level
     var currentTime = 0.5;  // Start after a brief delay
@@ -292,7 +375,9 @@
         timings.push({
             gridSize: config.gridLevels[i],
             startTime: startTime,
-            endTime: endTime
+            endTime: endTime,
+            percentage: approximationData[i].percentage,
+            count: approximationData[i].count
         });
         
         currentTime = startTime + config.pauseDuration;
@@ -301,13 +386,16 @@
     // Create layers (order matters for layer stacking)
     // Create from top to bottom (first created = top layer in timeline)
     
-    // 1. Origin marker (topmost)
+    // 1. Info text (topmost)
+    createInfoTextLayer(timings);
+    
+    // 2. Origin marker
     createOriginMarkerLayer();
     
-    // 2. Circle
+    // 3. Circle
     createCircleLayer();
     
-    // 3. Grid lines for each level (in reverse order so smaller grids are on top)
+    // 4. Grid lines for each level (in reverse order so smaller grids are on top)
     for (var i = timings.length - 1; i >= 0; i--) {
         createGridLayer(
             timings[i].gridSize,
@@ -316,7 +404,7 @@
         );
     }
     
-    // 4. Filled squares for each level (in reverse order)
+    // 5. Filled squares for each level (in reverse order)
     for (var i = timings.length - 1; i >= 0; i--) {
         createFilledSquaresLayer(
             timings[i].gridSize,
@@ -325,14 +413,21 @@
         );
     }
     
-    // 5. Axes (bottom layer)
+    // 6. Axes (bottom layer)
     createAxesLayer();
 
     app.endUndoGroup();
     
+    // Build percentage summary
+    var percentSummary = [];
+    for (var i = 0; i < timings.length; i++) {
+        percentSummary.push(timings[i].gridSize + "×" + timings[i].gridSize + ": " + timings[i].percentage + "%");
+    }
+    
     alert("Square Approximation animation created!\n\n" +
-          "Layers created: " + (3 + config.gridLevels.length * 2) + "\n" +
+          "Layers created: " + (4 + config.gridLevels.length * 2) + "\n" +
           "Grid levels: " + config.gridLevels.join(" → ") + "\n" +
+          "Approximation: \n" + percentSummary.join("\n") + "\n\n" +
           "Each level pauses for " + config.pauseDuration + " seconds.");
 
 })();
